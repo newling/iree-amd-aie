@@ -36,15 +36,18 @@ static llvm::cl::opt<AIEPassPipeline> clUsePipeline(
     "iree-amdaie-use-pipeline",
     llvm::cl::desc("Pick the lowering pipeline to use"),
     llvm::cl::values(
-        clEnumValN(
-            AIEPassPipeline::PackPeelPipeline, "pack-peel",
-            "Use the pack-peel based lowering strategy for matmul-like ops"),
-        clEnumValN(
-            AIEPassPipeline::PadPackPipeline, "pad-pack",
-            "Use the pad-pack based lowering strategy for matmul-like ops"),
+        clEnumValN(AIEPassPipeline::PackPeelPipeline, "pack-peel",
+                   "Use a  lowering through pack operations to the AIR "
+                   "dialect, for matmul-like ops"),
+        clEnumValN(AIEPassPipeline::PadPackPipeline, "pad-pack",
+                   "Use a lowering through pad and pack operations to the AIR "
+                   "dialect, for matmul-like ops"),
         clEnumValN(AIEPassPipeline::ConvDecomposePipeline, "conv-decompose",
                    "Use the conv-decompose based lowering strategy for "
-                   "convolution interface ops")),
+                   "convolution interface ops"),
+        clEnumValN(AIEPassPipeline::ObjectFifoPipeline, "objectFifo",
+                   "Use a lowering through pack operations to object fifos, "
+                   "then the AIE dialect. For matmul-like operations")),
     llvm::cl::init(AIEPassPipeline::PadPackPipeline));
 
 static llvm::cl::opt<int32_t> clNumCores(
@@ -532,6 +535,8 @@ void buildAMDAIETransformPassPipeline(OpPassManager &variantPassManager) {
     addMLIRAIRLoweringPasses(modulePassManager, false);
   } else if (clUsePipeline == AIEPassPipeline::PackPeelPipeline) {
     addMLIRAIRLoweringPasses(modulePassManager, true);
+  } else if (clUsePipeline == AIEPassPipeline::ObjectFifoPipeline) {
+    addAMDAIEObjectFifoLoweringPasses(modulePassManager);
   }
   variantPassManager.addPass(createReconcileTranslationInfoPass());
   variantPassManager.addPass(createAMDAIELowerWorkgroupCountPass());
@@ -541,6 +546,46 @@ void buildAMDAIETransformPassPipeline(OpPassManager &variantPassManager) {
     variantPassManager.printAsTextualPipeline(llvm::dbgs());
     llvm::dbgs() << "\n";
   });
+}
+
+void addAMDAIEObjectFifoLoweringPasses(OpPassManager &passManager) {
+  passManager.addPass(createEraseHALDescriptorTypeFromMemRefPass());
+  passManager.addPass(memref::createFoldMemRefAliasOpsPass());
+  passManager.addPass(createAMDAIEPackToDmaPass());
+  passManager.addPass(xilinx::air::createCopyToDmaPass());
+
+  passManager.addPass(createAMDAIEAIRDmaAMDAIEDmaPass());
+  passManager.addPass(createAMDAIENormalizeLoopBoundsPass());
+  passManager.addPass(createAMDAIEInsertCoresPass());
+  passManager.addPass(createAMDAIELocalizeLogicalObjectFifoPass());
+  passManager.addPass(createCSEPass());
+
+  passManager.addPass(createAMDAIEDistributeCoresAndObjectFifosPass());
+  passManager.addPass(createCSEPass());
+  passManager.addPass(createCanonicalizerPass());
+
+  passManager.addPass(createAMDAIEDmaToCircularDmaPass());
+  passManager.addNestedPass<func::FuncOp>(createAMDAIECreateAIEWorkgroupPass());
+  passManager.addPass(createCSEPass());
+
+  passManager.addPass(createAMDAIECanonicalizeDoublyStridedOpPass());
+  passManager.addPass(createAMDAIEAccessToAcquireReleasePass());
+  passManager.addPass(createCSEPass());
+  passManager.addPass(createCanonicalizerPass());
+
+  passManager.addPass(createAMDAIEControlCodeLoopUnrollPass());
+  passManager.addPass(createCSEPass());
+  passManager.addPass(createCanonicalizerPass());
+
+  passManager.addPass(createAMDAIECreateLogicalObjectFifoLinkPass());
+  passManager.addPass(createAMDAIECanonicalizeDoublyStridedOpPass());
+  passManager.addPass(createCanonicalizerPass());
+
+  passManager.addPass(createAMDAIELowerToAIEPass());
+  passManager.addPass(createAMDAIEConvertCoreForallToForPass());
+  passManager.addPass(createCanonicalizerPass());
+
+  passManager.addPass(createConvertLinalgToLoopsPass());
 }
 
 // TODO (Erwei): The "packPeel" temporary argument should be removed once
