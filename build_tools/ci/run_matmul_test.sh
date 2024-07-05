@@ -388,6 +388,9 @@ function run_matmul_test() {
                       --iree-amd-aie-install-dir=${amd_aie_install_path} \
                       --iree-amd-aie-vitis-install-dir=${vitis_path} \
                       --iree-hal-dump-executable-files-to=$PWD \
+                      --mlir-print-ir-before-all \
+                      --mlir-print-ir-module-scope \
+                      --mlir-disable-threading \
                       --iree-amd-aie-show-invoked-commands"
 
   if [ $use_ukernel -ne 0 ]; then
@@ -482,6 +485,16 @@ function run_matmul_test() {
 ########################################################
 # Run tests                                            #
 ########################################################
+
+run_matmul_test \
+    --name_prefix "small" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "i32" \
+    --acc_type "i32" \
+    --m "128" --k "256" --n "128"
+
+exit 0
 
 # Notes:
 # 1. Be conservative in adding more shapes, as it can increase both the
@@ -746,10 +759,3 @@ run_matmul_test \
 
 ###################################################################
 
-run_matmul_test \
-    --name_prefix "small" \
-    --lower_to_aie_pipeline "objectFifo" \
-    --tile_pipeline "pack-peel" \
-    --lhs_rhs_type "i32" \
-    --acc_type "i32" \
-    --m "128" --k "256" --n "128"
