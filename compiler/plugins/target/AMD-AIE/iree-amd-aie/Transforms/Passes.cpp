@@ -40,6 +40,9 @@ static llvm::cl::opt<LowerToAIEPassPipeline> clUseLowerToAIEPipeline(
     llvm::cl::desc("Pick the lowering pipeline to use"),
     llvm::cl::values(clEnumValN(LowerToAIEPassPipeline::AIR, "air",
                                 "Use the IREE lowering through AIR"),
+    llvm::cl::values(clEnumValN(LowerToAIEPassPipeline::MatmulDirect,
+                                "matmulDirect",
+                                "Use the IREE lowering to matmulDirect"),
                      clEnumValN(LowerToAIEPassPipeline::ObjectFifo,
                                 "objectFifo",
                                 "Use the IREE lowering to objectFifos")),
@@ -51,6 +54,9 @@ static llvm::cl::opt<TilePassPipeline> clUseTilePipeline(
     "iree-amdaie-tile-pipeline",
     llvm::cl::desc("Pick the lowering pipeline to use"),
     llvm::cl::values(
+        clEnumValN(
+            TilePassPipeline::BufferizeDirectPipeline, "bufferize-direct",
+            "No tiling, just bufferize"),
         clEnumValN(
             TilePassPipeline::PackPeelPipeline, "pack-peel",
             "Use the pack-peel based lowering strategy for matmul-like ops"),
@@ -315,6 +321,11 @@ void addPackPeelBasedPassPipeline(OpPassManager &funcPassManager,
   // Comprehensive bufferization
   addAMDAIEBufferizePasses(funcPassManager);
   funcPassManager.addPass(createHoistStaticallyBoundAllocationsPass());
+}
+
+void addBufferizeDirectPipeline(OpPassManager &funcPassManager,
+                                TilingConfig &tilingConfig) {
+  assert(false && "BufferizeDirectPipeline not implemented yet");
 }
 
 void addPadPackBasedPassPipeline(OpPassManager &funcPassManager,

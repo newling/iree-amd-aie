@@ -214,6 +214,8 @@ def AMDAIELowerExecutableTarget :
       /*default=*/"mlir::iree_compiler::AMDAIE::TilePassPipeline::PadPackPipeline",
       "Pass pipeline to use while lowering to AIR dialect",
       [{::llvm::cl::values(
+        clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::BufferizeDirectPipeline, "bufferize-direct",
+                   "Bufferize directly, no tiling."),
         clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::PackPeelPipeline, "pack-peel",
                    "Use the pack-peel based lowering strategy for matmul-like ops."),
         clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::PadPackPipeline, "pad-pack",
@@ -234,6 +236,8 @@ def AMDAIELoweringStrategy :
       /*default=*/"mlir::iree_compiler::AMDAIE::TilePassPipeline::PadPackPipeline",
       "Pass pipeline to use while lowering to AIR dialect",
       [{::llvm::cl::values(
+        clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::BufferizeDirectPipeline, "bufferize-direct",
+                   "Bufferize directly, no tiling."),
         clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::PackPeelPipeline, "pack-peel",
                    "Use the pack-peel based lowering strategy for matmul-like ops."),
         clEnumValN(mlir::iree_compiler::AMDAIE::TilePassPipeline::PadPackPipeline, "pad-pack",

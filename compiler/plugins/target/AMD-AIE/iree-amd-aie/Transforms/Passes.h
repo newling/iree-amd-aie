@@ -45,6 +45,10 @@ void addPadPackBasedPassPipeline(OpPassManager &passManager,
 void addConvDecomposePassPipeline(OpPassManager &passManager,
                                   TilingConfig &tilingConfig);
 
+/// Don't tile, basically just bufferize and be done with it. 
+void addDirectBufferizePipeline(OpPassManager &passManager,
+                                TilingConfig &config);
+
 /// Populates passes needed to link HAL executables across AIE targets.
 void buildAMDAIELinkingPassPipeline(OpPassManager &passManager);
 
