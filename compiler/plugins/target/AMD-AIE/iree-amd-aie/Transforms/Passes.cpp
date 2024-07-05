@@ -40,7 +40,7 @@ static llvm::cl::opt<LowerToAIEPassPipeline> clUseLowerToAIEPipeline(
     llvm::cl::desc("Pick the lowering pipeline to use"),
     llvm::cl::values(clEnumValN(LowerToAIEPassPipeline::AIR, "air",
                                 "Use the IREE lowering through AIR"),
-    llvm::cl::values(clEnumValN(LowerToAIEPassPipeline::MatmulDirect,
+                     clEnumValN(LowerToAIEPassPipeline::MatmulDirect,
                                 "matmulDirect",
                                 "Use the IREE lowering to matmulDirect"),
                      clEnumValN(LowerToAIEPassPipeline::ObjectFifo,
@@ -325,7 +325,7 @@ void addPackPeelBasedPassPipeline(OpPassManager &funcPassManager,
 
 void addBufferizeDirectPipeline(OpPassManager &funcPassManager,
                                 TilingConfig &tilingConfig) {
-  assert(false && "BufferizeDirectPipeline not implemented yet");
+  addAMDAIEBufferizePasses(funcPassManager);
 }
 
 void addPadPackBasedPassPipeline(OpPassManager &funcPassManager,
@@ -554,7 +554,9 @@ void buildAMDAIETransformPassPipeline(OpPassManager &variantPassManager) {
         [&]() { return createAMDAIELowerExecutableTargetPass(options); });
   }
   modulePassManager.addPass(createLowerUKernelOpsToCallsPass());
-  if (clUseLowerToAIEPipeline == LowerToAIEPassPipeline::ObjectFifo) {
+  if (clUseLowerToAIEPipeline == LowerToAIEPassPipeline::MatmulDirect) {
+    addMatmulDirectLoweringPasses(modulePassManager);
+  } else if (clUseLowerToAIEPipeline == LowerToAIEPassPipeline::ObjectFifo) {
     addAMDAIEObjectFifoLoweringPasses(modulePassManager);
   } else if (clUseLowerToAIEPipeline == LowerToAIEPassPipeline::AIR) {
     addMLIRAIRLoweringPasses(modulePassManager);
@@ -614,6 +616,22 @@ void addAMDAIEObjectFifoLoweringPasses(OpPassManager &passManager) {
 
   // Now lower using the AIE passes from MLIR-AIE.
   addMLIRAIELoweringPasses(passManager);
+}
+
+// Create a pass that emits an error on the top-level operation.
+std::unique_ptr<Pass> createJustFailPass() {
+  struct JustFailPass
+      : public PassWrapper<JustFailPass, OperationPass<ModuleOp>> {
+    void runOnOperation() override {
+      ModuleOp module = getOperation();
+      module.emitError("Emitting an error from JustFailPass");
+    }
+  };
+  return std::make_unique<JustFailPass>();
+}
+
+void addMatmulDirectLoweringPasses(OpPassManager &passManager) {
+  passManager.addPass(createJustFailPass());
 }
 
 // TODO (Erwei): The "packPeel" temporary argument should be removed once
@@ -744,7 +762,8 @@ void addMLIRAIRLoweringPasses(OpPassManager &passManager) {
     // AIRUnrollOuterPerfectlyNestedLoopsPass, to enforce SHIM DMA BD count
     // within the hardware limit.
     std::vector<unsigned> tile_sizes;
-    if (clUseTilePipeline == TilePassPipeline::PackPeelPipeline) {
+    if (clUseTilePipeline == TilePassPipeline::PackPeelPipeline ||
+        clUseTilePipeline == TilePassPipeline::BufferizeDirectPipeline) {
       tile_sizes = {2, 2};
     } else if (clUseTilePipeline == TilePassPipeline::PadPackPipeline) {
       tile_sizes = {4, 4};

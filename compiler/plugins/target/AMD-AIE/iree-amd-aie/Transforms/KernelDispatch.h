@@ -15,6 +15,7 @@ namespace mlir::iree_compiler::AMDAIE {
 /// Enum for AIE lowering pipelines to pick.
 enum class LowerToAIEPassPipeline {
   AIR,
+  MatmulDirect,
   ObjectFifo,
   None
 };
@@ -23,6 +24,7 @@ enum class LowerToAIEPassPipeline {
 /// enums are implemented using tablegen in IREE, it isnt extensible.
 /// This is an enum to pick different pass pipelines in IREE.
 enum class TilePassPipeline {
+  BufferizeDirectPipeline,
   PackPeelPipeline,
   PadPackPipeline,
   ConvDecomposePipeline,

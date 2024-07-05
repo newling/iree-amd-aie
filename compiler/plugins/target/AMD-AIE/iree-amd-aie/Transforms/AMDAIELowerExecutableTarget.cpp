@@ -114,7 +114,7 @@ void AMDAIELowerExecutableTargetPass::runOnOperation() {
       } else if (usePassPipeline == TilePassPipeline::ConvDecomposePipeline) {
         addConvDecomposePassPipeline(executableLoweringPipeline, tilingConfig);
       } else if (usePassPipeline == TilePassPipeline::BufferizeDirectPipeline){
-        addBufferizerDirectPipeline(executableLoweringPipeline, tilingConfig);
+        addBufferizeDirectPipeline(executableLoweringPipeline, tilingConfig);
       }
     } break;
     default:
