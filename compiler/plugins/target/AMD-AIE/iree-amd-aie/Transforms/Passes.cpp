@@ -326,6 +326,7 @@ void addPackPeelBasedPassPipeline(OpPassManager &funcPassManager,
 void addBufferizeDirectPipeline(OpPassManager &funcPassManager,
                                 TilingConfig &tilingConfig) {
   addAMDAIEBufferizePasses(funcPassManager);
+  funcPassManager.addPass(createAMDAIEMatmulDirectPass());
 }
 
 void addPadPackBasedPassPipeline(OpPassManager &funcPassManager,

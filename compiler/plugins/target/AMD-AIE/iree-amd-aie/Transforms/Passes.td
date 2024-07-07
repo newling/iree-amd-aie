@@ -165,6 +165,16 @@ def AMDAIEInsertCores :
   let constructor = "mlir::iree_compiler::AMDAIE::createAMDAIEInsertCoresPass()";
 }
 
+def AMDAIEMatmulDirect : InterfacePass<"iree-amdaie-matmul-direct", "mlir::FunctionOpInterface"> {
+  let summary = "Convert a bufferized linalg.matmul to object-fifo abstraction";
+  let constructor = "mlir::iree_compiler::AMDAIE::createAMDAIEMatmulDirectPass()";
+
+  let description = [{
+        TODO: Add description.
+  }];
+  
+}
+
 def AMDAIEInsertLoopsForVectorization :
   InterfacePass<"iree-amdaie-insert-loops-for-vectorization", "mlir::FunctionOpInterface"> {
 

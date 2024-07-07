@@ -124,6 +124,8 @@ std::unique_ptr<Pass> createAMDAIEHoistForLoopAffineApplyPass();
 /// vectorization passes (to vector and aievec dialects).
 std::unique_ptr<Pass> createAMDAIEInsertLoopsForVectorizationPass();
 
+std::unique_ptr<Pass> createAMDAIEMatmulDirectPass();
+
 /// Create a pass to fuse the pack operations into the for loops.
 std::unique_ptr<Pass> createAMDAIEFusePackIntoLoopPass(
     AMDAIEFusePackIntoLoopOptions options = {});
