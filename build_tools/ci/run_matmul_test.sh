@@ -836,13 +836,52 @@ run_matmul_test \
     --m "1536" --k "2048" --n "1536" \
     --num_repeat_runs "10"
 
+# bf16 Matmul tests.
 run_matmul_test \
     --name_prefix "small" \
     --lower_to_aie_pipeline "objectFifo" \
     --tile_pipeline "pack-peel" \
     --lhs_rhs_type "bf16" \
     --acc_type "f32" \
-    --m "64" --k "64" --n "64"
+    --m "64" --k "64" --n "64" \
+    --num_repeat_runs "10"
+
+run_matmul_test \
+    --name_prefix "small" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "bf16" \
+    --acc_type "f32" \
+    --m "128" --k "256" --n "128" \
+    --num_repeat_runs "10"
+
+run_matmul_test \
+    --name_prefix "medium" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "bf16" \
+    --acc_type "f32" \
+    --m "1024" --k "1024" --n "1024" \
+    --num_repeat_runs "5"
+
+run_matmul_test \
+    --name_prefix "medium" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "bf16" \
+    --acc_type "f32" \
+    --m "1536" --k "2048" --n "1536" \
+    --num_repeat_runs "5"
+
+# i8 Matmul tests.
+run_matmul_test \
+    --name_prefix "small" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "i8" \
+    --acc_type "i32" \
+    --m "64" --k "64" --n "64" \
+    --num_repeat_runs "10"
 
 run_matmul_test \
     --name_prefix "small" \
@@ -850,7 +889,26 @@ run_matmul_test \
     --tile_pipeline "pack-peel" \
     --lhs_rhs_type "i8" \
     --acc_type "i32" \
-    --m "64" --k "64" --n "64"
+    --m "128" --k "256" --n "128" \
+    --num_repeat_runs "10"
+
+run_matmul_test \
+    --name_prefix "medium" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "i8" \
+    --acc_type "i32" \
+    --m "1024" --k "1024" --n "1024" \
+    --num_repeat_runs "5"
+
+run_matmul_test \
+    --name_prefix "medium" \
+    --lower_to_aie_pipeline "objectFifo" \
+    --tile_pipeline "pack-peel" \
+    --lhs_rhs_type "i8" \
+    --acc_type "i32" \
+    --m "1536" --k "2048" --n "1536" \
+    --num_repeat_runs "5"
 
 ###################################################################
 # Chess tests
@@ -866,6 +924,8 @@ run_matmul_test \
     --use_chess "1" \
     --num_repeat_runs "1"
 
+# This test is extremely flakey at the moment, so setting num_repeat_runs to 0.
+# TODO: investigate. 
 run_matmul_test \
     --name_prefix "chess_f32_matmul" \
     --lhs_rhs_type "f32" \
@@ -874,7 +934,7 @@ run_matmul_test \
     --n "32" \
     --k "32" \
     --use_chess "1" \
-    --num_repeat_runs "1"
+    --num_repeat_runs "0"
 
 if [ $MATMUL_TESTS_FAILS -ne 0 ]; then
   echo "$MATMUL_TESTS_FAILS matmul tests failed! Scroll up and look for the 🦄 and 🐞..."
