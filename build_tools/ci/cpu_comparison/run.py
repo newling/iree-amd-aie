@@ -107,8 +107,7 @@ def shell_out(cmd: list, workdir=None, verbose: int = 0, raise_on_error=True, en
         )
     if raise_on_error and handle.returncode != 0:
         raise RuntimeError(
-            f"Error executing script, error code was {handle.returncode}",
-            file=sys.stderr
+            f"Error executing script, error code was {handle.returncode}"
         )
     return stdout_decode, stderr_decode
 
