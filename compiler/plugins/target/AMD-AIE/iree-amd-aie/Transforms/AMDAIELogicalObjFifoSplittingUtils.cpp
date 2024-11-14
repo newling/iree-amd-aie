@@ -23,8 +23,10 @@
 
 namespace mlir::iree_compiler::AMDAIE {
 
-/// Hardcoded the transposed dimensions for now.
-const SmallVector<size_t> transposeDim = {0, 2, 1, 3};
+/// Hardcoded the transposed dimensions of L2 target dma for now.
+/// The values are based on the results from ConvertToDma with option as
+/// transposed on target, e.g., dma size [1, 1, 32, 32] -> [1, 32, 1, 32].
+const static SmallVector<size_t> transposedL2Dims = {0, 2, 1, 3};
 
 /// Utility to create a new logical objectfifo.
 static AMDAIE::LogicalObjectFifoFromMemrefOp createNewLogicalObjectFifo(
@@ -302,28 +304,22 @@ static LogicalResult checkWhetherSplitIsPossible(
 /// The intuition is if the sizes of L2 and L3 side are the same, then dma has
 /// transposition on L3 side, otherwise the transposition is on L2 side.
 static bool isL2DmaTransposed(AMDAIE::DmaCpyNdOp l3ToL2DmaOp, bool isL2Target) {
-  SmallVector<OpFoldResult> l2DmaSizes;
-  SmallVector<OpFoldResult> l3DmaSizes;
-  if (isL2Target) {
-    l2DmaSizes = l3ToL2DmaOp.getTargetMixedSizes();
-    l3DmaSizes = l3ToL2DmaOp.getSourceMixedSizes();
-  } else {
-    l2DmaSizes = l3ToL2DmaOp.getSourceMixedSizes();
-    l3DmaSizes = l3ToL2DmaOp.getTargetMixedSizes();
-  }
-  return l2DmaSizes.size() == l3DmaSizes.size() ? false : true;
+  if (isL2Target)
+    return l3ToL2DmaOp.getTargetMixedSizes().size() !=
+           l3ToL2DmaOp.getSourceMixedSizes().size();
+  return l3ToL2DmaOp.getSourceMixedSizes().size() !=
+         l3ToL2DmaOp.getTargetMixedSizes().size();
 }
 
 /// Given a vector of L2->L1 Dma ops' perform the splitting :-
-/// 1. Check if the splitting can be performed or not. If not possible, bail
-/// out.
+/// 1. Check if the splitting can be performed. If it can't, bail out.
 /// 2. For the split dimension inferred set offset = 0 and size as 1 for L2 and
 ///    L3.
 /// 3. Now traverse each L2->L1 Dma op and perform the following :-
-///    a) Create a new L2 AllocOp based on the updated size (step 3 above) and
+///    a) Create a new L2 AllocOp based on the updated size (step 2 above) and
 ///       create a logicalobjectfifo using the same.
 ///    b) Split L3->L2 Dma op.
-///    c) SPlit L2->L1 Dma op.
+///    c) Split L2->L1 Dma op.
 /// 4. Delete old L2->L1, L3->L2 and corresponding AllocOps.
 LogicalResult splitThirdInputLogicalObjectFifos(
     IRRewriter &rewriter, SmallVector<AMDAIE::DmaCpyNdOp> &l2ToL1DmaOps,
@@ -381,10 +377,10 @@ LogicalResult splitThirdInputLogicalObjectFifos(
     // sizes need to be modified to match the new L2 target sizes.
     for (auto &&[splitDim, nonSplitdim] :
          llvm::zip_equal(splitDimsForL2, nonSplitDimsForL2)) {
-      staticL2AsTargetOffsets[transposeDim[splitDim]] = zeroVal;
-      staticL2AsTargetSizes[transposeDim[splitDim]] = oneVal;
+      staticL2AsTargetOffsets[transposedL2Dims[splitDim]] = zeroVal;
+      staticL2AsTargetSizes[transposedL2Dims[splitDim]] = oneVal;
       staticL3AsSourceSizes[splitDim] =
-          staticL2AsTargetSizes[transposeDim[nonSplitdim]];
+          staticL2AsTargetSizes[transposedL2Dims[nonSplitdim]];
     }
   }
 
@@ -584,7 +580,7 @@ LogicalResult splitLogicalObjectFifo(IRRewriter &rewriter,
 
     size_t splitDimTarget = 0;
     if (isL2DmaTransposed(producer, true)) {
-      splitDimTarget = transposeDim[splitDim];
+      splitDimTarget = transposedL2Dims[splitDim];
     }
     std::optional<int64_t> targetSize =
         getConstantIntValue(targetSizes[splitDimTarget]);
@@ -682,7 +678,7 @@ LogicalResult splitDoublyStridedOp(IRRewriter &rewriter,
 
   size_t splitDimTarget = 0;
   if (isL2DmaTransposed(op, isL2Target)) {
-    splitDimTarget = transposeDim[splitDim];
+    splitDimTarget = transposedL2Dims[splitDim];
   }
   // Get new sizes and offsets after splitting.
   if (!op->use_empty())
