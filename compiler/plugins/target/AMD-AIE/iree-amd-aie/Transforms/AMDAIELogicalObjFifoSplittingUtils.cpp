@@ -8,15 +8,11 @@
 
 #include <numeric>
 
-#include "iree-amd-aie/Transforms/AMDAIEDmaUtils.h"
 #include "iree-amd-aie/Transforms/AMDAIEUtils.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Debug.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Iterators.h"
 #include "mlir/IR/Operation.h"
 
 #define DEBUG_TYPE "iree-amdaie-logicalobjfifo-splitting-utils"
@@ -493,12 +489,12 @@ LogicalResult splitThirdInputLogicalObjectFifos(
 
 /// Utility to get the DoublyStridedCopyOp producers and consumers of a given
 /// objectFifo op.
-template <typename T>
-LogicalResult getDoublyStridedCopyOpProducersAndConsumers(
-    AMDAIE::LogicalObjectFifoFromMemrefOp op, SmallVector<T> &producers,
-    SmallVector<T> &consumers) {
+LogicalResult appendDoublyStridedCopyOpProducersAndConsumers(
+    AMDAIE::LogicalObjectFifoFromMemrefOp op,
+    SmallVector<AMDAIE::DmaCpyNdOp> &producers,
+    SmallVector<AMDAIE::DmaCpyNdOp> &consumers) {
   for (Operation *userOp : op->getUsers()) {
-    if (auto stridedCopyOp = dyn_cast<T>(userOp)) {
+    if (auto stridedCopyOp = dyn_cast<AMDAIE::DmaCpyNdOp>(userOp)) {
       if (dyn_cast_if_present<AMDAIE::LogicalObjectFifoFromMemrefOp>(
               stridedCopyOp.getTarget().getDefiningOp()) == op) {
         producers.push_back(stridedCopyOp);
@@ -554,6 +550,9 @@ LogicalResult splitLogicalObjectFifo(IRRewriter &rewriter,
     return op.emitOpError()
            << "a dynamic size on the split dimension is not supported";
   }
+
+  if (splitFactor == 1) return success();
+
   memrefShape[splitDim] /= splitFactor;
 
   // Create `splitFactor` number of objectFifo ops.
@@ -567,8 +566,8 @@ LogicalResult splitLogicalObjectFifo(IRRewriter &rewriter,
   // Get the producers and consumers of the current objectFifoOp.
   SmallVector<AMDAIE::DmaCpyNdOp> producers;
   SmallVector<AMDAIE::DmaCpyNdOp> consumers;
-  if (failed(getDoublyStridedCopyOpProducersAndConsumers(op, producers,
-                                                         consumers))) {
+  if (failed(appendDoublyStridedCopyOpProducersAndConsumers(op, producers,
+                                                            consumers))) {
     return failure();
   }
 
