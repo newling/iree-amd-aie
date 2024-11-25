@@ -155,7 +155,7 @@ module {
 // CHECK-SAME:                                         ins(%[[MATMUL]], %[[OPERAND2]] :
 // CHECK-SAME:                                         outs(%[[OPERAND3]] :
 //      CHECK:                                    {
-//      CHECK:                                         arith.addi  
+//      CHECK:                                         arith.addi
 //      CHECK:                                    }
 //  CHECK-DAG:            %[[iv0:.*]] = affine.apply #[[UNPACK_RESULT_MAP0]](%[[IV0]])
 //  CHECK-DAG:            %[[iv1:.*]] = affine.apply #[[UNPACK_RESULT_MAP1]](%[[IV1]])

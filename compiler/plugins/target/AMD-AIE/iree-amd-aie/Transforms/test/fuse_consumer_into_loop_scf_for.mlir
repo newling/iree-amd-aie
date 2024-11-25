@@ -161,7 +161,7 @@ module {
 // CHECK-SAME:                                         ins(%[[MATMUL]], %[[OPERAND2]] :
 // CHECK-SAME:                                         outs(%[[OPERAND3]] :
 //      CHECK:                                    {
-//      CHECK:                                         arith.addi  
+//      CHECK:                                         arith.addi
 //      CHECK:                                    }
 //      CHECK:            %[[YIELD_ELEM:.*]] = tensor.insert_slice %[[FUSED_CONSUMER]] into %[[ITER_ARG_2]]
 //  CHECK-DAG:            %[[iv0:.*]] = affine.apply #[[UNPACK_RESULT_MAP0]](%[[IV0]])

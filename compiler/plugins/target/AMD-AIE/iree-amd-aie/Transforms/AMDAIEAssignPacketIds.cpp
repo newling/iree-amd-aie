@@ -7,7 +7,7 @@
 #include "iree-amd-aie/IR/AMDAIEOps.h"
 #include "iree-amd-aie/Transforms/AMDAIEUtils.h"
 #include "iree-amd-aie/Transforms/Passes.h"
-#include "iree-amd-aie/Transforms/Transforms.h"
+#include "iree-amd-aie/aie_runtime/iree_aie_runtime.h"
 
 #define DEBUG_TYPE "iree-amdaie-assign-packet-ids"
 
@@ -46,39 +46,41 @@ void AMDAIEAssignPacketIdsPass::runOnOperation() {
   // different packet IDs assigned to accommodate multiple data packets being
   // routed through the same ports.
   DenseMap<AMDAIE::ChannelOp, size_t> channelToPktFlowIndex;
-  WalkResult res =
-      parentOp->walk([&](AMDAIE::FlowOp flowOp) {
-        if (!flowOp.getIsPacketFlow()) return WalkResult::advance();
-        SmallVector<Value> sourceChannels = flowOp.getSources();
-        if (sourceChannels.size() == 0) {
-          flowOp.emitOpError() << "with no source channel is unsupported";
-          return WalkResult::interrupt();
-        }
-        if (sourceChannels.size() > 1) {
-          flowOp.emitOpError()
-              << "with multiple source channels is unsupported";
-          return WalkResult::interrupt();
-        }
-        auto sourceChannelOp = dyn_cast_if_present<AMDAIE::ChannelOp>(
-            sourceChannels[0].getDefiningOp());
-        if (!sourceChannelOp) {
-          flowOp.emitOpError() << "source should be an `amdaie.channel` op";
-          return WalkResult::interrupt();
-        }
-        size_t pktFlowIndex = channelToPktFlowIndex[sourceChannelOp];
-        if (pktFlowIndex > deviceModel.getPacketIdMaxIdx()) {
-          flowOp.emitOpError()
-              << "ran out of packet IDs to assign for source channel";
-          return WalkResult::interrupt();
-        }
-        IntegerAttr pktIdAttr = IntegerAttr::get(ui8ty, pktFlowIndex);
-        rewriter.setInsertionPoint(flowOp);
-        rewriter.replaceOpWithNewOp<AMDAIE::FlowOp>(
-            flowOp, flowOp.getSources(), flowOp.getTargets(),
-            flowOp.getIsPacketFlow(), pktIdAttr);
-        channelToPktFlowIndex[sourceChannelOp]++;
-        return WalkResult::advance();
-      });
+
+  auto assignId = [&](AMDAIE::FlowOp flowOp) -> LogicalResult {
+    SmallVector<Value> sourceChannels = flowOp.getSources();
+    if (sourceChannels.size() != 1) {
+      return flowOp.emitOpError()
+             << "has " << sourceChannels.size()
+             << " source channels which is unsupported, exactly 1 "
+                "source channel is expected";
+    }
+    auto sourceChannelOp = dyn_cast_if_present<AMDAIE::ChannelOp>(
+        sourceChannels[0].getDefiningOp());
+    if (!sourceChannelOp) {
+      return flowOp.emitOpError() << "source should be an `amdaie.channel` op";
+    }
+    size_t pktFlowIndex = channelToPktFlowIndex[sourceChannelOp];
+    if (pktFlowIndex > deviceModel.getPacketIdMaxIdx()) {
+      return flowOp.emitOpError()
+             << "ran out of packet IDs to assign for source channel, "
+                "device supports at most "
+             << deviceModel.getPacketIdMaxIdx() << "IDs.";
+    }
+    IntegerAttr pktIdAttr = IntegerAttr::get(ui8ty, pktFlowIndex);
+    rewriter.setInsertionPoint(flowOp);
+    rewriter.replaceOpWithNewOp<AMDAIE::FlowOp>(
+        flowOp, flowOp.getSources(), flowOp.getTargets(),
+        flowOp.getIsPacketFlow(), pktIdAttr);
+    channelToPktFlowIndex[sourceChannelOp]++;
+    return success();
+  };
+
+  WalkResult res = parentOp->walk([&](AMDAIE::FlowOp flowOp) {
+    if (!flowOp.getIsPacketFlow()) return WalkResult::advance();
+    if (failed(assignId(flowOp))) return WalkResult::interrupt();
+    return WalkResult::advance();
+  });
   if (res.wasInterrupted()) return signalPassFailure();
 }
 

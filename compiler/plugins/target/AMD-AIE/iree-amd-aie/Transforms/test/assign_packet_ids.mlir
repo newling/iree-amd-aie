@@ -29,7 +29,7 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
     amdaie.workgroup {
       %tile_0_1 = amdaie.tile(%c0, %c1)
       %channel = amdaie.channel(%tile_0_1, 0, port_type = DMA, direction = S2MM)
-      // expected-error @+1 {{with no source channel is unsupported}}
+      // expected-error @+1 {{'amdaie.flow' op has 0 source channels which is unsupported, exactly 1 source channel is expected}}
       %0 = amdaie.flow({} -> {%channel}) {is_packet_flow = true}
       amdaie.controlcode {
         amdaie.end
@@ -72,7 +72,7 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
       %channel = amdaie.channel(%tile_0_0, 0, port_type = DMA, direction = MM2S)
       %channel_1 = amdaie.channel(%tile_0_0, 1, port_type = DMA, direction = MM2S)
       %channel_2 = amdaie.channel(%tile_0_1, 0, port_type = DMA, direction = S2MM)
-      // expected-error @+1 {{with multiple source channels is unsupported}}
+      // expected-error @+1 {{'amdaie.flow' op has 2 source channels which is unsupported, exactly 1 source channel is expected}}
       %0 = amdaie.flow({%channel, %channel_1} -> {%channel_2}) {is_packet_flow = true}
       amdaie.controlcode {
         amdaie.end
@@ -203,7 +203,7 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
       %29 = amdaie.flow({%channel} -> {%channel_1}) {is_packet_flow = true}
       %30 = amdaie.flow({%channel} -> {%channel_1}) {is_packet_flow = true}
       %31 = amdaie.flow({%channel} -> {%channel_1}) {is_packet_flow = true}
-      // expected-error @+1 {{ran out of packet IDs to assign}}
+      // expected-error @+1 {{ran out of packet IDs to assign, device supports at most 31 IDs.}}
       %32 = amdaie.flow({%channel} -> {%channel_1}) {is_packet_flow = true}
       amdaie.controlcode {
         amdaie.end
