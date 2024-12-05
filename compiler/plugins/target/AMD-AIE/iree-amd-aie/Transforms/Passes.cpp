@@ -667,6 +667,7 @@ void addAMDAIEObjectFifoLoweringPasses(
   passManager.addPass(createAMDAIEAssignPacketIdsPass());
 
   passManager.addPass(createAMDAIENpuDmaToHalfDmaCpyNdPass());
+  passManager.addPass(createAMDAIESimplifyDmaWaitsPass());
   passManager.addPass(createAMDAIEControlCodeLoweringPass());
   passManager.addPass(createAMDAIEControlCodeToTransactionPass());
 
