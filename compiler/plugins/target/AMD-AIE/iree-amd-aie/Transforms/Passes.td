@@ -346,7 +346,7 @@ def AMDAIEInsertInfiniteLoopAroundCoreBlock :
     This pass is meant for developers to allow retrieval of granular performance
     statistics and is not meant to be enabled by default. With this pass enabled,
     you can put a loop around the hardware queue command submission, for example:
-    
+
     ```
     for (int i = 0; i < N; i++) {
       ebuf.m_cmd_pkt->state = ERT_CMD_STATE_NEW;

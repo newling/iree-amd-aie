@@ -6,7 +6,6 @@
 
 #include "iree-amd-aie/IR/AMDAIEOps.h"
 #include "iree-amd-aie/Transforms/Passes.h"
-#include "iree-amd-aie/Transforms/Utils/AMDAIEDmaUtils.h"
 #include "iree-amd-aie/Transforms/Utils/AMDAIEUtils.h"
 #include "iree-amd-aie/aie_runtime/iree_aie_runtime.h"
 #include "mlir/IR/Iterators.h"
@@ -16,83 +15,110 @@ namespace mlir::iree_compiler::AMDAIE {
 
 namespace {
 
+FailureOr<bool> canFoldBasedOnHalfDmaCpyNdOp(
+    AMDAIE::NpuHalfDmaCpyNdOp npuHalfDmaCpyNdOp,
+    const AMDAIE::AMDAIEDeviceModel &deviceModel,
+    DenseMap<std::pair<AMDAIE::TileOp, AMDAIE::ConnectionOp>,
+             SmallVector<uint32_t>> &tileConnectionToBdIdQueueMap) {
+  // Retrieve the connection op.
+  std::optional<AMDAIE::ConnectionOp> maybeConnectionOp =
+      npuHalfDmaCpyNdOp.getConnectionOp();
+  if (!maybeConnectionOp) {
+    return npuHalfDmaCpyNdOp.emitOpError()
+           << "expected to operate on an `amdaie.connection`";
+  }
+  AMDAIE::ConnectionOp connectionOp = maybeConnectionOp.value();
+
+  // Retrieve the flow op.
+  std::optional<AMDAIE::FlowOp> maybeFlowOp = connectionOp.getFlowOp();
+  if (!maybeFlowOp) {
+    return maybeConnectionOp->emitOpError()
+           << "expected to operate on an `amdaie.flow`";
+  }
+  bool isPacketFlow = maybeFlowOp->getIsPacketFlow();
+
+  // Retrieve the BD ID op.
+  std::optional<AMDAIE::BdIdOp> maybeBdIdOp = npuHalfDmaCpyNdOp.getBdIdOp();
+  if (!maybeBdIdOp) {
+    return npuHalfDmaCpyNdOp.emitOpError()
+           << "must have a BD ID op to lower to `amdaie.npu.write_bd`";
+  }
+  AMDAIE::BdIdOp bdIdOp = maybeBdIdOp.value();
+
+  // Retrieve the tile op.
+  AMDAIE::TileOp tileOp =
+      dyn_cast_if_present<AMDAIE::TileOp>(bdIdOp.getTile().getDefiningOp());
+  if (!tileOp) {
+    return bdIdOp.emitOpError() << "must operate on an `amdaie.tile`";
+  }
+
+  // Get the maximum queue size.
+  uint32_t col = getConstantIndexOrAssert(tileOp.getCol());
+  uint32_t row = getConstantIndexOrAssert(tileOp.getRow());
+  uint32_t maxQueueSize = deviceModel.getDmaMaxQueueSize(col, row);
+
+  // Keep wait op if any of:
+  //
+  // 1) reaches the maximum queue size, or
+  // 2) the queue is currently empty
+  // 3) there is a duplicate BD ID in the same tile
+  // 4) the flow is packet flow
+  uint32_t bdId = getConstantIndexOrAssert(bdIdOp.getValue());
+  bool isDuplicateBdId =
+      llvm::any_of(tileConnectionToBdIdQueueMap, [&](const auto &entry) {
+        return entry.first.first == tileOp &&
+               llvm::is_contained(entry.second, bdId);
+      });
+  SmallVector<uint32_t> &bdIdQueue =
+      tileConnectionToBdIdQueueMap[std::make_pair(tileOp, connectionOp)];
+  if (isDuplicateBdId || isPacketFlow || bdIdQueue.size() >= maxQueueSize) {
+    bdIdQueue.clear();
+  }
+
+  bool queueIsEmpty = bdIdQueue.empty();
+  bdIdQueue.push_back(bdId);
+
+  return !queueIsEmpty;
+}
+
+FailureOr<bool> canFoldWaitOp(
+    AMDAIE::NpuDmaWaitOp waitOp, const AMDAIE::AMDAIEDeviceModel &deviceModel,
+    DenseMap<std::pair<AMDAIE::TileOp, AMDAIE::ConnectionOp>,
+             SmallVector<uint32_t>> &tileConnectionToBdIdQueueMap) {
+  for (Value token : waitOp.getAsyncTokens()) {
+    if (auto npuHalfDmaCpyNdOp = dyn_cast_if_present<AMDAIE::NpuHalfDmaCpyNdOp>(
+            token.getDefiningOp())) {
+      auto maybeCanFold = canFoldBasedOnHalfDmaCpyNdOp(
+          npuHalfDmaCpyNdOp, deviceModel, tileConnectionToBdIdQueueMap);
+      if (failed(maybeCanFold)) return failure();
+      if (maybeCanFold.value() == false) return false;
+    }
+  }
+
+  return true;
+}
+
 /// Traverses the control code in reverse, ensuring that for each connection,
 /// only one DMA wait op is retained for every maximum queue size.
 LogicalResult foldDmaWaits(const AMDAIE::AMDAIEDeviceModel &deviceModel,
                            AMDAIE::ControlCodeOp controlCodeOp) {
   IRRewriter rewriter(controlCodeOp->getContext());
+
   std::vector<AMDAIE::NpuDmaWaitOp> waitOpsToErase;
+
   DenseMap<std::pair<AMDAIE::TileOp, AMDAIE::ConnectionOp>,
            SmallVector<uint32_t>>
       tileConnectionToBdIdQueueMap;
+
   // Traverse the control code in reverse.
   WalkResult res = controlCodeOp->walk<WalkOrder::PostOrder, ReverseIterator>(
       [&](AMDAIE::NpuDmaWaitOp waitOp) {
-        bool toErase = true;
-        for (Value token : waitOp.getAsyncTokens()) {
-          if (auto npuHalfDmaCpyNdOp =
-                  dyn_cast_if_present<AMDAIE::NpuHalfDmaCpyNdOp>(
-                      token.getDefiningOp())) {
-            // Retrieve the connection op.
-            std::optional<AMDAIE::ConnectionOp> maybeConnectionOp =
-                npuHalfDmaCpyNdOp.getConnectionOp();
-            if (!maybeConnectionOp) {
-              npuHalfDmaCpyNdOp.emitOpError()
-                  << "expected to operate on an `amdaie.connection`";
-              return WalkResult::interrupt();
-            }
-            AMDAIE::ConnectionOp connectionOp = maybeConnectionOp.value();
-            // Retrieve the flow op.
-            std::optional<AMDAIE::FlowOp> maybeFlowOp =
-                maybeConnectionOp->getFlowOp();
-            if (!maybeFlowOp) {
-              maybeConnectionOp->emitOpError()
-                  << "expected to operate on an `amdaie.flow`";
-              return WalkResult::interrupt();
-            }
-            bool isPacketFlow = maybeFlowOp->getIsPacketFlow();
-            // Retrieve the BD ID op.
-            std::optional<AMDAIE::BdIdOp> maybeBdIdOp =
-                npuHalfDmaCpyNdOp.getBdIdOp();
-            if (!maybeBdIdOp) {
-              npuHalfDmaCpyNdOp.emitOpError()
-                  << "must have a BD ID op to lower to "
-                     "`amdaie.npu.write_bd`";
-              return WalkResult::interrupt();
-            }
-            AMDAIE::BdIdOp bdIdOp = maybeBdIdOp.value();
-            // Retrieve the tile op.
-            AMDAIE::TileOp tileOp = dyn_cast_if_present<AMDAIE::TileOp>(
-                bdIdOp.getTile().getDefiningOp());
-            if (!tileOp) {
-              bdIdOp.emitOpError() << "must operate on an `amdaie.tile`";
-              return WalkResult::interrupt();
-            }
-            // Get the maximum queue size.
-            uint32_t col = getConstantIndexOrAssert(tileOp.getCol());
-            uint32_t row = getConstantIndexOrAssert(tileOp.getRow());
-            uint32_t maxQueueSize = deviceModel.getDmaMaxQueueSize(col, row);
-            // Keep wait op if, either reaches the maximum queue size, or there
-            // is a duplicate BD ID in the same tile.
-            uint32_t bdId = getConstantIndexOrAssert(bdIdOp.getValue());
-            bool isDuplicateBdId = llvm::any_of(
-                tileConnectionToBdIdQueueMap, [&](const auto &entry) {
-                  return entry.first.first == tileOp &&
-                         llvm::is_contained(entry.second, bdId);
-                });
-            SmallVector<uint32_t> &bdIdQueue =
-                tileConnectionToBdIdQueueMap[std::make_pair(tileOp,
-                                                            connectionOp)];
-            if (isDuplicateBdId || isPacketFlow ||
-                bdIdQueue.size() >= maxQueueSize) {
-              bdIdQueue.clear();
-            }
-            if (bdIdQueue.empty()) toErase = false;
-            bdIdQueue.push_back(bdId);
-          }
-        }
+        FailureOr<bool> maybeToErase =
+            canFoldWaitOp(waitOp, deviceModel, tileConnectionToBdIdQueueMap);
+        if (failed(maybeToErase)) return WalkResult::interrupt();
+        bool canFold = maybeToErase.value();
         // Erase later to avoid invalidating the iterator.
-        if (toErase) waitOpsToErase.push_back(waitOp);
+        if (canFold) waitOpsToErase.push_back(waitOp);
         return WalkResult::advance();
       });
   if (res.wasInterrupted()) return failure();
@@ -141,21 +167,27 @@ void AMDAIEFoldDmaWaitsPass::runOnOperation() {
   if (!maybeDevice) {
     parentOp->emitOpError()
         << "has no AMDAIEDevice in the target attribute configuration. This "
-           "device-specific information is required to fold DMA wait "
-           "ops.";
+           "device-specific information is required to fold DMA wait ops.";
     return signalPassFailure();
   }
   AMDAIE::AMDAIEDeviceModel deviceModel =
       AMDAIE::getDeviceModel(maybeDevice.value());
 
-  WalkResult res = parentOp->walk([&](AMDAIE::WorkgroupOp workgroupOp) {
-    AMDAIE::ControlCodeOp controlCodeOp = workgroupOp.getControlCode();
-    if (failed(foldDmaWaits(deviceModel, controlCodeOp))) {
-      return WalkResult::interrupt();
-    }
-    return WalkResult::advance();
+  DenseSet<Block *> blocksWithDmaWaits;
+  parentOp->walk([&](AMDAIE::NpuDmaWaitOp waitOp) {
+    blocksWithDmaWaits.insert(waitOp->getBlock());
   });
-  if (res.wasInterrupted()) return signalPassFailure();
+
+  // Collect all control code ops:
+  SmallVector<AMDAIE::ControlCodeOp> controlCodeOps;
+  parentOp->walk([&](AMDAIE::ControlCodeOp controlCodeOp) {
+    controlCodeOps.push_back(controlCodeOp);
+  });
+  for (AMDAIE::ControlCodeOp controlCodeOp : controlCodeOps) {
+    if (failed(foldDmaWaits(deviceModel, controlCodeOp))) {
+      return signalPassFailure();
+    }
+  }
 }
 
 }  // namespace

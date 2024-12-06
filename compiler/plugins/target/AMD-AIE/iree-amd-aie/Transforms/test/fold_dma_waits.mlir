@@ -31,16 +31,8 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
 
 // Expect no DMA waits to be folded, since the same BD ID is used.
 // CHECK-LABEL: @fold_dma_waits_same_bd_id
-// CHECK:       %[[OBJECT_FIFO_0:.+]] = amdaie.logicalobjectfifo.from_buffers
-// CHECK:       %[[CHANNEL_0:.+]] = amdaie.channel
-// CHECK:       %[[CHANNEL_1:.+]] = amdaie.channel
-// CHECK:       %[[CONNECTION:.+]] = amdaie.connection
-// CHECK:         %[[OBJECT_FIFO_1:.+]] = amdaie.logicalobjectfifo.from_memref
-// CHECK:         %[[BD_ID:.+]] = amdaie.bd_id
-// CHECK:         %[[TOKEN_0:.+]] = amdaie.npu.half_dma_cpy_nd async %[[CONNECTION]](%[[OBJECT_FIFO_1]] [] [] [] bd_id = %[[BD_ID]] channel = %[[CHANNEL_0]]) : !amdaie.logicalobjectfifo<memref<2048xi32>>
-// CHECK:         amdaie.npu.dma_wait(%[[TOKEN_0]] : !amdaie.async_token)
-// CHECK:         %[[TOKEN_1:.+]] = amdaie.npu.half_dma_cpy_nd async %[[CONNECTION]](%[[OBJECT_FIFO_1]] [] [] [] bd_id = %[[BD_ID]] channel = %[[CHANNEL_0]]) : !amdaie.logicalobjectfifo<memref<2048xi32>>
-// CHECK:         amdaie.npu.dma_wait(%[[TOKEN_1]] : !amdaie.async_token)
+// CHECK-COUNT-2: amdaie.npu.dma_wait
+// CHECK-NOT: amdaie.npu.dma_wait
 #executable_target_amdaie_xclbin_fb = #hal.executable.target<"amd-aie", "amdaie-xclbin-fb", {target_device = "npu1_4col", ukernels = "none"}>
 #pipeline_layout = #hal.pipeline.layout<bindings = [#hal.pipeline.binding<storage_buffer, "ReadOnly|Indirect">, #hal.pipeline.binding<storage_buffer, "ReadOnly|Indirect">, #hal.pipeline.binding<storage_buffer, Indirect>], flags = Indirect>
 module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} {
@@ -78,8 +70,8 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
 
 // -----
 
-// DMA queue has a maximum size of 4. To optimize, starting from 
-// the end of the control code, retain every 4th DMA wait operation 
+// DMA queue has a maximum size of 4. To optimize, starting from
+// the end of the control code, retain every 4th DMA wait operation
 // while folding the others.
 // CHECK-LABEL: @fold_dma_waits_max_queue_size
 // CHECK:       %[[OBJECT_FIFO_0:.+]] = amdaie.logicalobjectfifo.from_buffers
@@ -200,7 +192,7 @@ module attributes {hal.executable.target = #executable_target_amdaie_xclbin_fb} 
       %channel = amdaie.channel(%tile_0, 0, port_type = DMA, direction = MM2S)
       %channel_7 = amdaie.channel(%tile_0, 1, port_type = DMA, direction = MM2S)
       %channel_8 = amdaie.channel(%tile, 0, port_type = DMA, direction = S2MM)
-      %channel_9 = amdaie.channel(%tile, 1, port_type = DMA, direction = S2MM) 
+      %channel_9 = amdaie.channel(%tile, 1, port_type = DMA, direction = S2MM)
       %6 = amdaie.flow({%channel} -> {%channel_7}) {is_packet_flow = false}
       %7 = amdaie.flow({%channel_8} -> {%channel_9}) {is_packet_flow = false}
       %8 = amdaie.connection(%0 {%channel_7}, %2 {%channel}, flow = %6) {connection_type = #amdaie<connection_type Packet>} : (!amdaie.logicalobjectfifo<memref<2048xi32, 1 : i32>, 2>, !amdaie.logicalobjectfifo<memref<64x32xi32>>)
