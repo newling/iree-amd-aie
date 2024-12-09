@@ -99,9 +99,12 @@ def AMDAIEBufferizeToAllocation :
                    "Create new allocations for lhs, rhs of a linalg op."),
         clEnumValN(mlir::iree_compiler::AMDAIE::BufferizeOperand::Output, "output",
                    "Create new allocations for output of a linalg op."),
-        clEnumValN(mlir::iree_compiler::AMDAIE::BufferizeOperand::DefOp, "def-op",
-                   "Create new allocations for operands from the def ops of a linalg op.")
-    )}]>
+        clEnumValN(mlir::iree_compiler::AMDAIE::BufferizeOperand::Pack, "pack",
+                   "Create new allocations for operands from the pack op inputs of a linalg op.")
+    )}]>,
+    Option<"packDepth", "pack-depth", "int64_t", /*default=*/"2",
+      "Set the depth of the pack operands to look for. Default set two `2` because two levels of"
+      " packs are typically introduced for matmul/conv">,
   ];
 }
 

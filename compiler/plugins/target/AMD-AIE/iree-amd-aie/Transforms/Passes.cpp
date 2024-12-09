@@ -217,7 +217,7 @@ void addPackPeelBasedPassPipeline(OpPassManager &funcPassManager,
   {
     AMDAIEBufferizeToAllocationOptions bufferizeOptions;
     bufferizeOptions.memorySpace = 1;
-    bufferizeOptions.bufferizeOperand = BufferizeOperand::DefOp;
+    bufferizeOptions.bufferizeOperand = BufferizeOperand::Pack;
     funcPassManager.addPass(
         createAMDAIEBufferizeToAllocationPass(bufferizeOptions));
   }
