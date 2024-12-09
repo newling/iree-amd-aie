@@ -103,7 +103,7 @@ def AMDAIEBufferizeToAllocation :
                    "Create new allocations for operands from the pack op inputs of a linalg op.")
     )}]>,
     Option<"packDepth", "pack-depth", "int64_t", /*default=*/"2",
-      "Set the depth of the pack operands to look for. Default set two `2` because two levels of"
+      "Set the depth of the pack operands to look for. Default is `2` because two levels of"
       " packs are typically introduced for matmul/conv">,
   ];
 }
@@ -343,7 +343,7 @@ def AMDAIEInsertInfiniteLoopAroundCoreBlock :
     This pass is meant for developers to allow retrieval of granular performance
     statistics and is not meant to be enabled by default. With this pass enabled,
     you can put a loop around the hardware queue command submission, for example:
-    
+
     ```
     for (int i = 0; i < N; i++) {
       ebuf.m_cmd_pkt->state = ERT_CMD_STATE_NEW;

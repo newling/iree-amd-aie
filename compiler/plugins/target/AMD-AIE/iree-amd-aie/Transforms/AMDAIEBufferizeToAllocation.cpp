@@ -72,9 +72,9 @@ static SmallVector<Value> getInputOperands(linalg::LinalgOp &linalgOp) {
 static FailureOr<SmallVector<Value>> getPackOperands(linalg::LinalgOp linalgOp,
                                                      uint32_t depthLevel) {
   SmallVector<Value> operands;
-  for (Value input : linalgOp.getDpsInputs()) {
+  for (auto input : llvm::enumerate(linalgOp.getDpsInputs())) {
     uint32_t currentLevel{0};
-    Operation *currentOp = input.getDefiningOp();
+    Operation *currentOp = input.value().getDefiningOp();
     while (currentLevel < depthLevel && currentOp != nullptr) {
       if (dyn_cast<tensor::PackOp>(currentOp)) {
         currentLevel++;
@@ -85,7 +85,9 @@ static FailureOr<SmallVector<Value>> getPackOperands(linalg::LinalgOp linalgOp,
     // The defining op has to be a pack op, fail otherwise.
     if (!currentOp) {
       return linalgOp.emitOpError()
-             << "couldn't find a pack operand at level: " << depthLevel;
+             << "operand #" << input.index() << " only has pack ops to depth "
+             << currentLevel << ", but request is for a depth " << depthLevel
+             << " pack op.";
     }
     // We only want to fetch the input operand of the pack op.
     operands.push_back(currentOp->getResult(0));

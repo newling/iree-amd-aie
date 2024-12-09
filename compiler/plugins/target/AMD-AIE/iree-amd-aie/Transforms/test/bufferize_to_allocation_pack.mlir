@@ -99,7 +99,7 @@ func.func @pack_error(%arg0 : tensor<1024x2048xi32>, %arg1 : tensor<2048x512xi32
     %8 = tensor.empty() : tensor<16x8x64x64xi32>
     %9 = linalg.fill ins(%c0_i32 : i32) outs(%8 : tensor<16x8x64x64xi32>) -> tensor<16x8x64x64xi32>
     // expected-error @+2 {{could not fetch operands to bufferize}}
-    // expected-error @+1 {{couldn't find a pack operand at level: 2}}
+    // expected-error @+1 {{'linalg.generic' op operand #0 only has pack ops to depth 1, but request is for a depth 2 pack op}}
     %10 = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "parallel", "reduction", "parallel", "parallel", "reduction"]} ins(%pack, %pack_0 : tensor<16x32x64x64xi32>, tensor<32x8x64x64xi32>) outs(%9 : tensor<16x8x64x64xi32>) {
     ^bb0(%in: i32, %in_4: i32, %out: i32):
       %14 = arith.muli %in, %in_4 : i32
