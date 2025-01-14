@@ -7,6 +7,7 @@
 #include "iree-amd-aie/IR/AMDAIEOps.h"
 
 #include <numeric>
+#include <sstream>
 
 #include "iree-amd-aie/IR/AMDAIEDialect.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -55,12 +56,79 @@ static void printAsyncTokenType(OpAsmPrinter &p, Operation *op,
   }
 }
 
+/// String describing the column and row of `tileOp`. Example: if the column
+/// of `tileOp` an integer value (3) and the row is not, the returned string
+/// might be `_3_r`, where the `_r` denotes that the row is not known.
+static std::string getTileSuffix(TileOp tileOp) {
+  std::optional<int64_t> iCol = getConstantIntValue(tileOp.getCol());
+  std::optional<int64_t> iRow = getConstantIntValue(tileOp.getRow());
+  std::ostringstream oss;
+  auto add = [&](std::optional<int64_t> maybeValue, char unknown) {
+    oss << '_';
+    if (maybeValue.has_value()) {
+      oss << maybeValue.value();
+    } else {
+      oss << unknown;
+    }
+  };
+
+  if (iCol.has_value() || iRow.has_value()) {
+    add(iCol, 'c');
+    add(iRow, 'r');
+  }
+  return oss.str();
+}
+
+static std::string getMultiTileSuffix(ArrayRef<TileOp> tiles) {
+  if (tiles.empty()) return "";
+
+  // Denotes one or more tiles with multiple possible row/column values.
+  constexpr int64_t multiple{-2};
+  constexpr int64_t unset{-1};
+  int64_t col{unset};
+  int64_t row{unset};
+
+  for (TileOp tile : tiles) {
+    if (!tile) {
+      col = multiple;
+      row = multiple;
+    } else {
+      std::optional<int64_t> maybeCol = getConstantIntValue(tile.getCol());
+      if (!maybeCol) col = multiple;
+      if (col >= 0 && maybeCol.value() != col) col = multiple;
+      if (col == unset) col = maybeCol.value();
+
+      std::optional<int64_t> maybeRow = getConstantIntValue(tile.getRow());
+      if (!maybeRow) row = multiple;
+      if (row >= 0 && maybeRow.value() != row) row = multiple;
+      if (row == unset) row = maybeRow.value();
+    }
+  }
+
+  std::ostringstream namestream;
+  namestream << '_';
+
+  if (col >= 0) {
+    namestream << col;
+  } else {
+    namestream << 'c';
+  }
+  if (row >= 0) {
+    namestream << '_' << row;
+  } else {
+    namestream << '_' << 'r';
+  }
+  return namestream.str();
+}
+
 //===----------------------------------------------------------------------===//
 // AMDAIE_BdIdOp
 //===----------------------------------------------------------------------===//
 
 void BdIdOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "bd_id");
+  TileOp tileOp = getTile().getDefiningOp<TileOp>();
+  assert(tileOp && "expected `amdaie.tile` for `amdaie.bd_id`");
+  setNameFn(getResult(), "bd_id" + getTileSuffix(tileOp));
 }
 
 //===----------------------------------------------------------------------===//
@@ -69,7 +137,9 @@ void BdIdOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
 
 void BufferOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "buffer");
+  TileOp tileOp = getTile().getDefiningOp<TileOp>();
+  assert(tileOp && "expected `amdaie.tile` for amdaie.buffer");
+  setNameFn(getResult(), "buffer" + getTileSuffix(tileOp));
 }
 
 //===----------------------------------------------------------------------===//
@@ -78,7 +148,9 @@ void BufferOp::getAsmResultNames(
 
 void ChannelOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "channel");
+  TileOp tileOp = getTile().getDefiningOp<TileOp>();
+  assert(tileOp && "expected `amdaie.tile` for `amdaie.channel`");
+  setNameFn(getResult(), "channel" + getTileSuffix(tileOp));
 }
 
 TileOp ChannelOp::getTileOp() {
@@ -474,6 +546,11 @@ void CircularDmaCpyNdOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // AMDAIE_ConnectionOp
 //===----------------------------------------------------------------------===//
 
+void ConnectionOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "connection");
+}
+
 void ConnectionOp::build(mlir::OpBuilder &b, mlir::OperationState &result,
                          Value target, Value source) {
   build(b, result, target, {}, source, {}, nullptr, nullptr);
@@ -522,7 +599,9 @@ LogicalResult FlowOp::verify() {
 //===----------------------------------------------------------------------===//
 
 void LockOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "lock");
+  TileOp tileOp = getTile().getDefiningOp<TileOp>();
+  assert(tileOp && "expected `amdaie.tile` for `amdaie.lock`");
+  setNameFn(getResult(), "lock" + getTileSuffix(tileOp));
 }
 
 //===----------------------------------------------------------------------===//
@@ -555,6 +634,16 @@ void LogicalObjectFifoAcquire::build(OpBuilder &b, mlir::OperationState &result,
 //===----------------------------------------------------------------------===//
 // AMDAIE_LogicalObjectFifoFromBuffersOp
 //===----------------------------------------------------------------------===//
+
+void LogicalObjectFifoFromBuffersOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  SmallVector<TileOp> tiles;
+  tiles.reserve(getTiles().size());
+  for (auto index : getTiles()) {
+    tiles.push_back(dyn_cast<TileOp>(index.getDefiningOp()));
+  }
+  setNameFn(getResult(), "lof" + getMultiTileSuffix(tiles));
+}
 
 SmallVector<AMDAIE::BufferOp> LogicalObjectFifoFromBuffersOp::getBuffersOnTile(
     TileOp tileOp) {
@@ -627,54 +716,12 @@ LogicalObjectFifoFromBuffersOp::replaceWithNewTiles(
 
 void LogicalObjectFifoFromMemrefOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
-  // 'lof' for 'logical object fifo'
-  constexpr const char *const name = "lof";
-
-  auto tiles = getTiles();
-
-  if (tiles.empty()) {
-    setNameFn(getResult(), name);
-    return;
+  SmallVector<TileOp> tiles;
+  tiles.reserve(getTiles().size());
+  for (auto index : getTiles()) {
+    tiles.push_back(dyn_cast<TileOp>(index.getDefiningOp()));
   }
-
-  // Denotes one or more tiles with multiple possible row/column values.
-  constexpr int64_t multiple{-2};
-  constexpr int64_t unset{-1};
-  int64_t col{unset};
-  int64_t row{unset};
-
-  for (Value index : tiles) {
-    TileOp tile = dyn_cast<TileOp>(index.getDefiningOp());
-    if (!tile) {
-      col = multiple;
-      row = multiple;
-    } else {
-      std::optional<int64_t> maybeCol = getConstantIntValue(tile.getCol());
-      if (!maybeCol) col = multiple;
-      if (col >= 0 && maybeCol.value() != col) col = multiple;
-      if (col == unset) col = maybeCol.value();
-
-      std::optional<int64_t> maybeRow = getConstantIntValue(tile.getRow());
-      if (!maybeRow) row = multiple;
-      if (row >= 0 && maybeRow.value() != row) row = multiple;
-      if (row == unset) row = maybeRow.value();
-    }
-  }
-
-  std::ostringstream namestream;
-  namestream << name << '_';
-
-  if (col >= 0) {
-    namestream << col;
-  } else {
-    namestream << 'c';
-  }
-  if (row >= 0) {
-    namestream << '_' << row;
-  } else {
-    namestream << '_' << 'r';
-  }
-  setNameFn(getResult(), namestream.str());
+  setNameFn(getResult(), "lof" + getMultiTileSuffix(tiles));
 }
 
 /// Build with an array of static tile locations.
@@ -1419,26 +1466,8 @@ SmallVector<AMDAIE::NpuDmaCpyNdOp> NpuDmaWaitOp::getDmaOps() {
 // AMDAIE_TileOp
 //===----------------------------------------------------------------------===//
 
-// Example: if the column is an integer value (3) and the row is not, the SSA
-// value might be `%tile_3_r`, where the `_r` denotes that the row is not known.
 void TileOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
-  std::optional<int64_t> iCol = getConstantIntValue(getCol());
-  std::optional<int64_t> iRow = getConstantIntValue(getRow());
-  std::ostringstream name;
-  name << "tile";
-
-  auto add = [&](std::optional<int64_t> maybeValue, char unknown) {
-    if (maybeValue.has_value()) {
-      name << '_' << maybeValue.value();
-    } else {
-      name << '_' << unknown;
-    }
-  };
-  if (iCol.has_value() || iRow.has_value()) {
-    add(iCol, 'c');
-    add(iRow, 'r');
-  }
-  setNameFn(getResult(), name.str());
+  setNameFn(getResult(), "tile" + getTileSuffix(*this));
 }
 
 bool TileOp::hasStaticLocation() {

@@ -185,7 +185,7 @@ struct AMDAIEAcquireReleaseToUseLockPass
     IRRewriter rewriter(parentOp->getContext());
 
     WalkResult res = parentOp->walk([&](AMDAIE::CoreOp coreOp) {
-      // Loops need to be unrolled based on on the depths of the logical
+      // Loops need to be unrolled based on the depths of the logical
       // objectFifos so `amdaie.use_lock` ops can be inserted correctly for
       // double buffering purposes, without need for a dependency on the loop
       // induction variable.
