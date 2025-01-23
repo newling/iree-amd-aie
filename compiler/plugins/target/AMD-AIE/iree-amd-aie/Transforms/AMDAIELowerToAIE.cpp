@@ -42,25 +42,28 @@ namespace mlir::iree_compiler::AMDAIE {
 static FailureOr<size_t> getUpdatedRepetitionCount(
     ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides,
     size_t curRepetitionCount) {
-  if (!strides.empty() && !sizes.empty() && isConstantIntValue(strides[0], 0)) {
-    int i = 0;
-    size_t repetitionCount{1};
-    while (i < strides.size() && isConstantIntValue(strides[i], 0)) {
-      std::optional<int64_t> maybeRepetitionCount =
-          getConstantIntValue(sizes[i]);
-      if (!maybeRepetitionCount) return failure();
-      assert(maybeRepetitionCount.value() >= 0 &&
-             "sizes should always be larger or equal to zero");
-      repetitionCount *= maybeRepetitionCount.value();
-      i += 1;
-    }
-    if (curRepetitionCount == 1) return repetitionCount;
-    size_t newRepetitionCount = std::min(repetitionCount, curRepetitionCount);
-    if (repetitionCount % newRepetitionCount != 0) return failure();
-    if (curRepetitionCount % newRepetitionCount != 0) return failure();
-    return newRepetitionCount;
+  if (strides.empty()) return curRepetitionCount;
+
+  // The repetition count is computed as the product of stride-0 dimensions
+  // of the dimension size.
+  size_t repetitionCount{1};
+  for (uint32_t i = 0; i < strides.size(); ++i) {
+    if (!isConstantIntValue(strides[i], 0)) break;
+    std::optional<int64_t> maybeSize = getConstantIntValue(sizes[i]);
+    if (!maybeSize) return failure();
+    assert(maybeSize.value() >= 0 && "sizes should always be non-negative");
+    repetitionCount *= maybeSize.value();
   }
-  return curRepetitionCount;
+
+  // This is dodgy and needs investigating.
+  if (curRepetitionCount == 1) return repetitionCount;
+
+  if (curRepetitionCount < repetitionCount) {
+    if (repetitionCount % curRepetitionCount != 0) return failure();
+    return curRepetitionCount;
+  }
+  if (curRepetitionCount % repetitionCount != 0) return failure();
+  return repetitionCount;
 }
 
 /// Utility to retrieve the common repetition count from all producers and
