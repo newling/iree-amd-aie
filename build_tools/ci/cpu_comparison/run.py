@@ -1664,7 +1664,17 @@ class Tests:
         for input_type, acc_type in zip(["i8", "bf16"], ["i32", "f32"]):
             self.register(MatmulTransposeB(32, 32, 32, input_type, acc_type))
             self.register(MatmulTransposeB(128, 256, 128, input_type, acc_type))
-            self.register(MatmulTransposeB(128, 256, 128, input_type, acc_type, tile_pipeline="pack-peel-4-level-tiling", name_suffix= "4level"))
+            self.register(
+                MatmulTransposeB(
+                    128,
+                    256,
+                    128,
+                    input_type,
+                    acc_type,
+                    tile_pipeline="pack-peel-4-level-tiling",
+                    name_suffix="4level",
+                )
+            )
             self.register(MatmulTransposeB(1536, 1536, 2048, input_type, acc_type))
 
         # MatmulTransposeA test(s):
