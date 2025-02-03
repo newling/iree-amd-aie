@@ -1757,14 +1757,42 @@ class Tests:
 
         self.register(
             Matmul(
+                128,
+                128,
+                128,
+                "i8",
+                "i32",
+                use_ukernel=False,
+                use_chess=False,
+                # run_on_target=["npu4"],
+                additional_labels=["foo"],
+                aie_compilation_flags=[
+                    # f"--iree-amd-aie-additional-peano-opt-flags={peano_opt_level_string}",
+                    "--iree-amdaie-num-rows=1",
+                    "--iree-amdaie-num-cols=1",
+                ],
+            )
+        )
+
+        peano_opt_level_string = f'"-O0"'
+        self.register(
+            Matmul(
                 64,
                 64,
                 64,
-                "bf16",
-                "f32",
-                use_ukernel=True,
-                use_chess=True,
+                "i8",
+                "i32",
+                use_ukernel=False,
+                use_chess=False,
                 run_on_target=["npu4"],
+                name_suffix="npu4_fail",
+                aie_compilation_flags=[
+                    f"--iree-amd-aie-additional-peano-opt-flags={peano_opt_level_string}",
+                    "--iree-amdaie-num-rows=1",
+                    "--iree-amdaie-num-cols=1",
+                ],
+                # f"--iree-amd-aie-additional-peano-opt-flags={peano_opt_level_string}",
+                additional_labels=["foo4"],
             )
         )
         self.register(
