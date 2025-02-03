@@ -272,8 +272,7 @@ class UPSOpConversion : public mlir::ConvertOpToLLVMPattern<aievec::UPSOp> {
   LogicalResult matchAndRewrite(
       aievec::UPSOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(device != AMDAIE::AMDAIEDevice::npu4 &&
-           "aie2p (also known as npu4) support is not confirmed for UPSOp.");
+    assert(AMDAIE::isAie2(device) && "UPSOp currently only supports AIE2.");
     Location loc = op.getLoc();
 
     Value result = op.getResult();
@@ -446,8 +445,7 @@ class SRSOpConversion : public mlir::ConvertOpToLLVMPattern<aievec::SRSOp> {
   LogicalResult matchAndRewrite(
       aievec::SRSOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(device != AMDAIE::AMDAIEDevice::npu4 &&
-           "aie2p (also known as npu4) support is not confirmed for SRSOp.");
+    assert(AMDAIE::isAie2(device) && "SRSOp currently only supports AIE2.");
     Location loc = op.getLoc();
 
     Value result = op.getResult();
@@ -599,9 +597,7 @@ class FMAElemOpConversion
   LogicalResult matchAndRewrite(
       aievec::FMAElemOp fmaOp, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(
-        device != AMDAIE::AMDAIEDevice::npu4 &&
-        "aie2p (also known as npu4) support is not confirmed for FMAElemOp.");
+    assert(AMDAIE::isAie2(device) && "FMAElemOp currently only supports AIE2.");
     auto loc = fmaOp.getLoc();
     auto lhs = adaptor.getLhs();
     auto rhs = adaptor.getRhs();
@@ -765,8 +761,7 @@ class FoldAIECastOps : public mlir::ConvertOpToLLVMPattern<aievec::CastOp> {
   LogicalResult matchAndRewrite(
       aievec::CastOp castOp, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(device != AMDAIE::AMDAIEDevice::npu4 &&
-           "aie2p (also known as npu4) support is not confirmed for CastOp.");
+    assert(AMDAIE::isAie2(device) && "CastOp currently only supports AIE2.");
     rewriter.replaceOp(castOp, adaptor.getSource());
     return success();
   }
@@ -787,9 +782,7 @@ class ShuffleOpConversion
   LogicalResult matchAndRewrite(
       aievec::ShuffleOp shuffleOp, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(
-        device != AMDAIE::AMDAIEDevice::npu4 &&
-        "aie2p (also known as npu4) support is not confirmed for ShuffleOp.");
+    assert(AMDAIE::isAie2(device) && "ShuffleOp currently only supports AIE2.");
     auto loc = shuffleOp.getLoc();
     auto lhs = adaptor.getLhs();
     auto rhs = adaptor.getRhs();
@@ -836,8 +829,7 @@ class ShiftOpConversion : public mlir::ConvertOpToLLVMPattern<aievec::ShiftOp> {
   LogicalResult matchAndRewrite(
       aievec::ShiftOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(device != AMDAIE::AMDAIEDevice::npu4 &&
-           "aie2p (also known as npu4) support is not confirmed for ShiftOp.");
+    assert(AMDAIE::isAie2(device) && "ShiftOp currently only supports AIE2.");
     Location loc = op.getLoc();
 
     Value result = op.getResult();
@@ -904,8 +896,7 @@ class ExtOpConversion : public mlir::ConvertOpToLLVMPattern<aievec::ExtOp> {
   LogicalResult matchAndRewrite(
       aievec::ExtOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    assert(device != AMDAIE::AMDAIEDevice::npu4 &&
-           "aie2p (also known as npu4) support is not confirmed for ExtOp.");
+    assert(AMDAIE::isAie2(device) && "ExtOp currently only supports AIE2.");
     Location loc = op.getLoc();
 
     Value src = adaptor.getSource();

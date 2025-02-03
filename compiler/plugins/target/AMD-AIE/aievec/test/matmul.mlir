@@ -67,17 +67,34 @@ func.func @matmuli8i8i32(%A : vector<4x8xi8>, %B : vector<8x8xi8>,
 
 // -----
 
-// TODO(newling)
-
 #foo = #hal.executable.target<"foo", "foo", {target_device = "npu4"}>
 module attributes {hal.executable.target = #foo} {
-
-// CHECK-LABEL: @matmuli8i8i32
-func.func @matmuli8i8i32(%A : vector<8x8xi8>, %B : vector<8x8xi8>,
+func.func @matmuli8i8i32npu4(%A : vector<8x8xi8>, %B : vector<8x8xi8>,
                   %C : vector<8x8xi32>) -> vector<8x8xi32> {
   %0 = aievec.matmul %A, %B, %C : vector<8x8xi8>, vector<8x8xi8>
                                   into vector<8x8xi32>
   return %0 : vector<8x8xi32>
 }
-
 }
+
+// CHECK-LABEL: @matmuli8i8i32npu4
+// CHECK-SAME: %[[A:.*]]: vector<8x8xi8>,  %[[B:.*]]: vector<8x8xi8>,
+// CHECK-SAME: %[[C:.*]]: vector<8x8xi32>
+// CHECK:      %[[FA:.*]] = vector.shape_cast %[[A]] :
+// CHECK-SAME:                      vector<8x8xi8> to vector<64xi8>
+// CHECK:      %[[FB:.*]] = vector.shape_cast %[[B]] :
+// CHECK-SAME:                      vector<8x8xi8> to vector<64xi8>
+// CHECK:      %[[FC:.+]] = vector.shape_cast %[[C]] :
+// CHECK-SAME:                      vector<8x8xi32> to vector<64xi32>
+// CHECK-DAG:  %[[CONF:.*]] = llvm.mlir.constant(776 : i32) : i32
+// CHECK:      %[[BCA:.*]] = llvm.bitcast %[[FA]] : vector<64xi8> to vector<16xi32>
+// CHECK:      %[[BCB:.*]] = llvm.bitcast %[[FB]] : vector<64xi8> to vector<32xi16>
+// CHECK:      %[[BCC:.*]] = llvm.bitcast %[[FC]] : vector<64xi32> to vector<32xi64>
+// CHECK:      %[[RACC:.*]] = "xllvm.intr.aie2p.I512.I512.ACC2048.mac.conf"(
+// CHECK-SAME:         %[[BCA]], %[[BCB]], %[[BCC]], %[[CONF]]) :
+// CHECK-SAME:         (vector<16xi32>, vector<32xi16>, vector<32xi64>, i32)
+// CHECK-SAME:         -> vector<32xi64>
+// CHECK:      %[[BCR:.*]] = llvm.bitcast %[[RACC]] : vector<32xi64> to vector<64xi32>
+// CHECK:      %[[R:.*]] = vector.shape_cast %[[BCR]] :
+// CHECK-SAME:                      vector<64xi32> to vector<8x8xi32>
+// CHECK:      return %[[R]] : vector<8x8xi32>
