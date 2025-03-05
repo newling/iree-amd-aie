@@ -10,6 +10,11 @@
 include "iree-amd-aie/IR/AMDAIEDialect.td"
 include "mlir/Pass/PassBase.td"
 
+def AMDAIEDoLightMagic :
+    Pass<"iree-amdaie-do-light-magic", ""> {
+ let summary = "TODO";
+ let constructor = "mlir::iree_compiler::AMDAIE::createAMDAIEDoLightMagicPass()";
+}
 
 def AMDAIEAccessToAcquireRelease :
     Pass<"iree-amdaie-access-to-acquire-release", ""> {

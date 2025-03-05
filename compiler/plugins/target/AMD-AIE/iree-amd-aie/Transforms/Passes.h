@@ -142,6 +142,8 @@ std::unique_ptr<Pass> createAMDAIEConvertCoreForallToForPass();
 std::unique_ptr<Pass> createAMDAIEConvertDeviceToControlPacketsPass(
     AMDAIEConvertDeviceToControlPacketsOptions options = {});
 
+std::unique_ptr<Pass> createAMDAIEDoLightMagicPass();
+
 /// Pass to insert an infinite loop around each `amdaie.core`'s block.
 std::unique_ptr<Pass> createAMDAIEInsertInfiniteLoopAroundCoreBlockPass();
 
