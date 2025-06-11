@@ -6,6 +6,7 @@
 
 #include "iree-amd-aie/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
@@ -82,8 +83,8 @@ void AMDAIEVectorizationPass::runOnOperation() {
     if (auto genericOp = dyn_cast<linalg::GenericOp>(op)) {
       if (isElementwise(genericOp)) {
         for (Operation &innerOps : genericOp.getBody()->getOperations()) {
-          if (!isa<arith::TruncFOp, arith::TruncIOp, linalg::YieldOp>(
-                  innerOps)) {
+          if (!isa<arith::TruncFOp, arith::TruncIOp, arith::ShRSIOp,
+                   linalg::YieldOp>(innerOps)) {
             return WalkResult::advance();
           }
         }

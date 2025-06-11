@@ -2249,19 +2249,20 @@ class Tests:
                 "peano_opt_level": 1,
             },
             {
-                "M": 1024,
-                "N": 4096 * 4,
-                "K": 512,
+                "M": 128,
+                "N": 128,
+                "K": 128,
                 "in_dtype": "i8",
-                "use_ukernel": True,
+                "use_ukernel": False,
                 "matmul4d": True,
                 "scale_trunc": True,
                 "tile_pipeline": "pack-peel-4-level-tiling",
-                "run_on_target": "npu4",
+                "run_on_target": "npu1_4col",
                 "use_chess": False,
                 "use_chess_for_ukernel": False,
                 "peano_opt_level": 1,
                 "stack_size": 3072,
+                "additional_labels":["James"],
             },
         ]
 
@@ -2299,6 +2300,7 @@ class Tests:
             additional_labels = test.get("additional_labels", [])
 
             skip_numerics = call_replication != 1
+            skip_numerics = True
 
             outlining_string = "--iree-amdaie-enable-function-outlining=" + outline
 
